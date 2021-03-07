@@ -38,7 +38,7 @@ typedef struct {           // объявляем структуру именем
   int txrate;
 } Wifi;
 
-static struct nla_policy stats_policy[NL80211_STA_INFO_MAX + 1] = {
+static struct nla_policy stats_policy[NL80211_STA_INFO_MAX + 1] = { //в структуре описаны соответствия основных определений с типами данных основных атрибутов netlink.
   [NL80211_STA_INFO_INACTIVE_TIME] = { .type = NLA_U32 },
   [NL80211_STA_INFO_RX_BYTES] = { .type = NLA_U32 },
   [NL80211_STA_INFO_TX_BYTES] = { .type = NLA_U32 },
@@ -51,7 +51,7 @@ static struct nla_policy stats_policy[NL80211_STA_INFO_MAX + 1] = {
   [NL80211_STA_INFO_PLINK_STATE] = { .type = NLA_U8 },
 };
 
-static struct nla_policy rate_policy[NL80211_RATE_INFO_MAX + 1] = {
+static struct nla_policy rate_policy[NL80211_RATE_INFO_MAX + 1] = { //в структуре описаны соответствия данных о rate с типами данных основных атрибутов netlink.
   [NL80211_RATE_INFO_BITRATE] = { .type = NLA_U16 },
   [NL80211_RATE_INFO_MCS] = { .type = NLA_U8 },
   [NL80211_RATE_INFO_40_MHZ_WIDTH] = { .type = NLA_FLAG },
@@ -59,11 +59,11 @@ static struct nla_policy rate_policy[NL80211_RATE_INFO_MAX + 1] = {
 };
 
 
-static int initNl80211(Netlink* nl, Wifi* w);                    // функция инициализирует связь с ядром
-static int finish_handler(struct nl_msg *msg, void *arg);
-static int getWifiName_callback(struct nl_msg *msg, void *arg);
-static int getWifiInfo_callback(struct nl_msg *msg, void *arg);
-static int getWifiStatus(Netlink* nl, Wifi* w);
+static int initNl80211(Netlink* nl, Wifi* w);                    //функция инициализирует связь с ядром
+static int finish_handler(struct nl_msg *msg, void *arg);        //функция finish_handler позволит нам получать сообщения от ядра (нужна для коллбеков)
+static int getWifiName_callback(struct nl_msg *msg, void *arg);  //функция, необходимая для формирования обратного вызова (информация о статусах txrate и signal интерфейса)
+static int getWifiInfo_callback(struct nl_msg *msg, void *arg);  //функция, необходимая для формирования обратного вызова (информация о статусах txrate и signal интерфейса)
+static int getWifiStatus(Netlink* nl, Wifi* w);                  //функция, реализующая получение необходимой информации о статусах интерфейса
 
 
 static int initNl80211(Netlink* nl, Wifi* w) {
@@ -116,36 +116,37 @@ static int finish_handler(struct nl_msg *msg, void *arg) {        //функци
 
 static int getWifiName_callback(struct nl_msg *msg, void *arg) { //функция, которая анализирует сообщение от ядра и получает имя интерфейса (ifname) и его индекс (ifindex).
  
-  struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
-
+  struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg)); //функция nlmsg_data() возвращает указатель на начало полезной нагрузки сообщения(адрес) (принимает в качестве параметра заголовок нетлинк)
+                                                        //функция nlmsg_hdr() возвращает фактическое сообщение netlink, преобразованное в тип заголовка сообщения netlink (принимает в качестве параметра сообшение нетлинк)
   struct nlattr *tb_msg[NL80211_ATTR_MAX + 1];
 
-  nla_parse(tb_msg,
-            NL80211_ATTR_MAX,
-            genlmsg_attrdata(gnlh, 0),
-            genlmsg_attrlen(gnlh, 0),
-            NULL);
+  nla_parse(tb_msg, // при помощи функции nla_parse() создаем индекс атрибутов на основе потока атрибутов.
+            NL80211_ATTR_MAX, //Индексный массив для заполнения (maxtype + 1 элемент).
+            genlmsg_attrdata(gnlh, 0), //Заголовок потока атрибутов. Функция genlmsg_attrdata() возвращает указатель (адрес) на атрибуты сообщения. Принимает параметры gnlh (типовой заголовок сообщения Netlink) и hdrlen (длина заголовка пользователя).
+            genlmsg_attrlen(gnlh, 0), //Длина потока атрибутов. Функция genlmsg_attrlen() возвращает длину атрибутов сообщения. Принимает параметры gnlh (типовой заголовок сообщения Netlink) и hdrlen (длина заголовка пользователя).
+            NULL); // Политика проверки атрибутов.
 
-  if (tb_msg[NL80211_ATTR_IFNAME]) {
-    strcpy(((Wifi*)arg)->ifname, nla_get_string(tb_msg[NL80211_ATTR_IFNAME]));
+  if (tb_msg[NL80211_ATTR_IFNAME]) { //функция nla_get_string() позволяет вернуть полезную нагрузку строкового атрибута.  В качестве параметра принимает строковый атрибут nla. Возвращаемое значение - указатель(адрес) на атрибут полезной нагрузки.
+    strcpy(((Wifi*)arg)->ifname, nla_get_string(tb_msg[NL80211_ATTR_IFNAME])); //копируем полезную информацию строкового атрибута NL80211_ATTR_IFNAME в ifname элемент структуры Wifi.
   }
 
-  if (tb_msg[NL80211_ATTR_IFINDEX]) {
-    ((Wifi*)arg)->ifindex = nla_get_u32(tb_msg[NL80211_ATTR_IFINDEX]);
+  if (tb_msg[NL80211_ATTR_IFINDEX]) { // функция nla_get_u32() возвращает полезную нагрузку 32-битного целочисленного атрибута. В качестве параметра принимает 32-битный целочисленный атрибут. Возвращаемое значение - полезная нагрузка как 32-битное целое число.
+
+    ((Wifi*)arg)->ifindex = nla_get_u32(tb_msg[NL80211_ATTR_IFINDEX]); //копируем полезную информацию строкового атрибута NL80211_ATTR_IFINDEX в ifindex элемент структуры Wifi.
   }
 
-  return NL_SKIP;
+  return NL_SKIP; //макрос возвращает значение параметра "Skip this message"
 }
 
 
-static int getWifiInfo_callback(struct nl_msg *msg, void *arg) { //функция анализирует сообщение от ядра и получаетсигнал Wi-Fi (wifi_signal) и tx rate (канальная скорость передачи по WiFi) (wifi_bitrate).  
+static int getWifiInfo_callback(struct nl_msg *msg, void *arg) { //функция анализирует сообщение от ядра и получаетсигнал Wi-Fi (wifi_signal) и txrate (канальная скорость передачи по WiFi) (wifi_bitrate).  
   struct nlattr *tb[NL80211_ATTR_MAX + 1];
   struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
-  struct nlattr *sinfo[NL80211_STA_INFO_MAX + 1];
-  struct nlattr *rinfo[NL80211_RATE_INFO_MAX + 1];
+  struct nlattr *sinfo[NL80211_STA_INFO_MAX + 1]; //Индексный массив (sinfo) для заполнения функцией nla_parse_nested() (maxtype + 1 элемент).
+  struct nlattr *rinfo[NL80211_RATE_INFO_MAX + 1]; //Индексный массив (rinfo) для заполнения функцией nla_parse_nested() (maxtype + 1 элемент).
   //nl_msg_dump(msg, stdout);
 
-  nla_parse(tb,
+  nla_parse(tb,  // при помощи функции nla_parse() создаем индекс атрибутов на основе потока атрибутов.
             NL80211_ATTR_MAX,
             genlmsg_attrdata(gnlh, 0),
             genlmsg_attrlen(gnlh, 0),
@@ -155,7 +156,7 @@ static int getWifiInfo_callback(struct nl_msg *msg, void *arg) { //функци�
     fprintf(stderr, "sta stats missing!\n"); return NL_SKIP;
   }
 
-  if (nla_parse_nested(sinfo, NL80211_STA_INFO_MAX,
+  if (nla_parse_nested(sinfo, NL80211_STA_INFO_MAX, //функция nla_parse_nested() создает индекс атрибута на основе вложенного атрибута.
                        tb[NL80211_ATTR_STA_INFO], stats_policy)) {
     fprintf(stderr, "failed to parse nested attributes!\n"); return NL_SKIP;
   }
@@ -165,7 +166,7 @@ static int getWifiInfo_callback(struct nl_msg *msg, void *arg) { //функци�
   }
 
   if (sinfo[NL80211_STA_INFO_TX_BITRATE]) {
-    if (nla_parse_nested(rinfo, NL80211_RATE_INFO_MAX,
+    if (nla_parse_nested(rinfo, NL80211_RATE_INFO_MAX, //функция nla_parse_nested() создает индекс атрибута на основе вложенного атрибута.
                          sinfo[NL80211_STA_INFO_TX_BITRATE], rate_policy)) {
       fprintf(stderr, "failed to parse nested rate attributes!\n"); }
     else {
